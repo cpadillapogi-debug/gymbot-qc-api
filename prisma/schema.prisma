@@ -1,0 +1,61 @@
+// GymBot QC API — Prisma schema
+// Mirrors the shapes your frontend already uses in js/storage.js,
+// so the migration off localStorage is a lift-and-shift, not a redesign.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  GYM_OWNER
+  DEVELOPER
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  role         Role
+  gym          Gym?     @relation("GymOwner")
+  createdAt    DateTime @default(now())
+  lastLoginAt  DateTime?
+
+  auditEntries AuditLogEntry[] @relation("PerformedBy")
+
+  @@map("users")
+}
+
+model Gym {
+  id        String    @id @default(cuid())
+  name      String
+  owner     User      @relation("GymOwner", fields: [ownerId], references: [id])
+  ownerId   String    @unique
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+
+  auditEntries AuditLogEntry[]
+
+  @@map("gyms")
+}
+
+// Matches config.js's AUDIT_ACTIONS constants as free-form strings for
+// now — tighten to an enum once the action list is finalized.
+model AuditLogEntry {
+  id            String   @id @default(cuid())
+  action        String
+  gym           Gym?     @relation(fields: [gymId], references: [id])
+  gymId         String?
+  performedBy   User?    @relation("PerformedBy", fields: [performedById], references: [id])
+  performedById String?
+  previousValue String?
+  newValue      String?
+  note          String?
+  createdAt     DateTime @default(now())
+
+  @@map("audit_log_entries")
+}
