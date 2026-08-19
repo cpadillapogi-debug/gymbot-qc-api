@@ -4,6 +4,8 @@ import cookieParser from "cookie-parser";
 import cors from "cors";
 import authRoutes from "./routes/auth.js";
 import adminRoutes from "./routes/admin.js";
+import leadsRoutes from "./routes/leads.js";
+import conversationsRoutes from "./routes/conversations.js";
 
 const app = express();
 
@@ -20,6 +22,8 @@ app.get("/health", (req, res) => res.json({ ok: true }));
 
 app.use("/auth", authRoutes);
 app.use("/admin", adminRoutes);
+app.use("/leads", leadsRoutes);
+app.use("/conversations", conversationsRoutes);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`GymBot QC API listening on :${PORT}`));
