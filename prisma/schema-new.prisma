@@ -131,4 +131,51 @@ model Lead {
 // owner claims and what the Developer decided.
 //
 // SCOPE NOTE: this model intentionally does NOT reference a Plan,
-// Subscription, Invoice, or
+// Subscription, Invoice, or Commission table — none of those exist
+// server-side yet (they're still frontend-only, in
+// subscription-service.js / invoice-service.js / commission-service.js).
+// amount/planId/planName/billingPeriod fields below are trusted as
+// submitted by the caller's own session (never another gym's), same
+// boundary every other route in this file draws — but there's no
+// server-side source of truth to validate the AMOUNT against yet.
+// Tighten this once Subscription/Invoice get their own real tables.
+model GcashPayment {
+  id                  String    @id @default(cuid())
+  gym                 Gym       @relation(fields: [gymId], references: [id])
+  gymId               String
+  planId              String
+  planName            String
+  amount              Float
+  billingPeriodStart  DateTime?
+  billingPeriodEnd    DateTime?
+  proofImageDataUrl   String
+  proofFileName       String    @default("")
+  reference           String    @default("")
+  note                String    @default("")
+  // "submitted" | "approved" | "rejected" — matches config.js's
+  // GCASH_PAYMENT_STATUS on the frontend.
+  status              String    @default("submitted")
+  submittedAt         DateTime  @default(now())
+  decidedAt           DateTime?
+  decidedByEmail      String?
+  rejectionReason     String?
+  internalNote        String    @default("")
+
+  @@index([gymId])
+  @@index([status])
+  @@map("gcash_payments")
+}
+
+  id            String   @id @default(cuid())
+  action        String
+  gym           Gym?     @relation(fields: [gymId], references: [id])
+  gymId         String?
+  performedBy   User?    @relation("PerformedBy", fields: [performedById], references: [id])
+  performedById String?
+  previousValue String?
+  newValue      String?
+  note          String?
+  createdAt     DateTime @default(now())
+
+  @@map("audit_log_entries")
+}
