@@ -3,6 +3,7 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { prisma } from "../db.js";
 import { requireAuth, JWT_SECRET } from "../middleware/requireAuth.js";
+import { loginLimiter, registerLimiter } from "../middleware/rateLimit.js";
 
 const router = Router();
 const BCRYPT_ROUNDS = 12;
@@ -37,7 +38,7 @@ function toSafeUser(user) {
 }
 
 /* ---------- POST /auth/register ---------- */
-router.post("/register", async (req, res) => {
+router.post("/register", registerLimiter, async (req, res) => {
   const { gymName, email, password, confirmPassword } = req.body || {};
   const cleanGymName = (gymName || "").trim();
   const cleanEmail = (email || "").trim().toLowerCase();
@@ -67,7 +68,7 @@ router.post("/register", async (req, res) => {
 });
 
 /* ---------- POST /auth/login ---------- */
-router.post("/login", async (req, res) => {
+router.post("/login", loginLimiter, async (req, res) => {
   const { email, password } = req.body || {};
   const cleanEmail = (email || "").trim().toLowerCase();
 
