@@ -38,10 +38,56 @@ model Gym {
   createdAt DateTime  @default(now())
   deletedAt DateTime?
 
-  auditEntries AuditLogEntry[]
-  leads        Lead[]
+  auditEntries  AuditLogEntry[]
+  leads         Lead[]
+  conversations Conversation[]
 
   @@map("gyms")
+}
+
+// One customer conversation thread per gym. `leadId` is optional and
+// set once a lead gets captured mid-conversation (captureLead()'s
+// dedup-by-phone can happen after messages have already come in) —
+// it is NOT required up front, since plenty of conversations never
+// turn into a lead at all (a customer just asking hours, say).
+model Conversation {
+  id            String    @id @default(cuid())
+  gym           Gym       @relation(fields: [gymId], references: [id])
+  gymId         String
+  lead          Lead?     @relation(fields: [leadId], references: [id])
+  leadId        String?
+  customerName  String    @default("")
+  customerPhone String    @default("")
+  // "ai" | "staff" — who's currently answering. Drives the "Take
+  // over" / "Return to AI" toggle in the (future) inbox UI.
+  handledBy     String    @default("ai")
+  // "open" | "resolved" — lets an owner clear their inbox without
+  // deleting history.
+  status        String    @default("open")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lastMessageAt DateTime  @default(now())
+
+  messages Message[]
+
+  @@index([gymId])
+  @@index([gymId, status])
+  @@map("conversations")
+}
+
+// "customer" | "bot" | "staff" — kept as a free-form string for the
+// same reason Lead.status is: matches how chat-ui.js already tags
+// messages by role, no separate enum to keep in sync.
+model Message {
+  id             String       @id @default(cuid())
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  conversationId String
+  role           String
+  text           String
+  createdAt      DateTime     @default(now())
+
+  @@index([conversationId])
+  @@map("messages")
 }
 
 // Mirrors the lead shape from js/services/leads-service.js exactly —
@@ -66,6 +112,8 @@ model Lead {
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
   lastActivityAt      DateTime @default(now())
+
+  conversations Conversation[]
 
   // Speeds up findLeadByPhone-equivalent lookups and the per-gym list
   // view, which are the two hot paths (captureLead's dedup check, and
