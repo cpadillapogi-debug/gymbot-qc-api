@@ -39,8 +39,40 @@ model Gym {
   deletedAt DateTime?
 
   auditEntries AuditLogEntry[]
+  leads        Lead[]
 
   @@map("gyms")
+}
+
+// Mirrors the lead shape from js/services/leads-service.js exactly —
+// LEAD_STATUSES/LEAD_SOURCES stay free-form strings (not enums) since
+// the frontend already owns and validates that list in config.js;
+// duplicating it here as a Postgres enum would mean two places to
+// update every time a status/source is added.
+model Lead {
+  id                  String   @id @default(cuid())
+  gym                 Gym      @relation(fields: [gymId], references: [id])
+  gymId               String
+  name                String
+  phone               String
+  email               String   @default("")
+  goal                String   @default("")
+  preferredTime       String   @default("")
+  source              String   @default("Website")
+  status              String   @default("New")
+  notes               String   @default("")
+  conversationSummary String   @default("")
+  statusHistory       Json     @default("[]")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  lastActivityAt      DateTime @default(now())
+
+  // Speeds up findLeadByPhone-equivalent lookups and the per-gym list
+  // view, which are the two hot paths (captureLead's dedup check, and
+  // GET /leads).
+  @@index([gymId])
+  @@index([gymId, phone])
+  @@map("leads")
 }
 
 // Matches config.js's AUDIT_ACTIONS constants as free-form strings for
