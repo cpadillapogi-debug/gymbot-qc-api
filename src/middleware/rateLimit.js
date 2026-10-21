@@ -52,3 +52,29 @@ export const registerLimiter = rateLimit({
   legacyHeaders: false,
   handler: tooManyRequestsHandler,
 });
+
+/** Change-password is a second credential-guessing surface (an attacker
+ *  with a stolen session cookie trying to brute-force the CURRENT
+ *  password before they can set a new one) — same strictness as login. */
+export const changePasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: tooManyRequestsHandler,
+  skipSuccessfulRequests: true,
+});
+
+/** Public widget endpoints have no session/account to rate-limit by, so
+ *  this is keyed by IP + the gymId in the URL (set via `keyGenerator`
+ *  at the route, see routes/public.js) — generous enough for a real
+ *  visitor chatting with the widget, tight enough to blunt a scripted
+ *  flood against one gym's public endpoints. */
+export const publicWidgetLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  limit: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: tooManyRequestsHandler,
+  keyGenerator: (req) => `${req.ip}:${req.params.gymId || "unknown"}`,
+});

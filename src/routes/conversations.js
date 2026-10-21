@@ -1,13 +1,14 @@
 import { Router } from "express";
 import { prisma } from "../db.js";
 import { requireAuth } from "../middleware/requireAuth.js";
+import { gymGate } from "../middleware/gymGate.js";
 
 const router = Router();
 
 // Same boundary as leads.js: gymId always comes from the verified
 // session (req.user), never from the URL/body — a Gym Owner can only
 // ever reach their own gym's conversations.
-router.use(requireAuth);
+router.use(requireAuth, gymGate());
 
 const MESSAGE_TEXT_MAX_LEN = 4000;
 const HANDLED_BY_VALUES = ["ai", "staff"];

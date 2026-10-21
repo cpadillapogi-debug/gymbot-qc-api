@@ -38,12 +38,103 @@ model Gym {
   createdAt DateTime  @default(now())
   deletedAt DateTime?
 
-  auditEntries  AuditLogEntry[]
-  leads         Lead[]
-  conversations Conversation[]
-  gcashPayments GcashPayment[]
+  auditEntries   AuditLogEntry[]
+  leads          Lead[]
+  conversations  Conversation[]
+  gcashPayments  GcashPayment[]
+  subscription   Subscription?
+  settings       GymSettings?
+  platformConfig GymPlatformConfig?
 
   @@map("gyms")
+}
+
+// One row per gym, lazily created on first read by
+// services/subscription.js's getSubscription() — mirrors the frontend's
+// subscription-service.js state machine exactly (same constants, same
+// transition rules) so this is a faithful server-side port, not a
+// redesign. planId/status/dates are the server's own source of truth now;
+// the frontend's localStorage copy only remains authoritative for the
+// Developer sales-demo gym (DEMO_GYM_ID), which has no row here at all.
+model Subscription {
+  id                 String    @id @default(cuid())
+  gym                Gym       @relation(fields: [gymId], references: [id])
+  gymId              String    @unique
+  planId             String    @default("pro")
+  status             String    @default("trialing")
+  statusSince        DateTime  @default(now())
+  trialEndDate       DateTime
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  nextBillingDate    DateTime?
+  canceledAt         DateTime?
+  requestedPlanId    String?
+  upgradeRequestedAt DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([status])
+  @@map("subscriptions")
+}
+
+// Structured per-gym Business Settings — mirrors
+// DEFAULT_BUSINESS_SETTINGS in the frontend's config.js field-for-field
+// (see gym-settings-service.js). One row per gym, lazily created with
+// these defaults on first read.
+model GymSettings {
+  id                 String   @id @default(cuid())
+  gym                Gym      @relation(fields: [gymId], references: [id])
+  gymId              String   @unique
+  gymName            String   @default("")
+  logoFileName       String   @default("")
+  address            String   @default("")
+  contactNumber      String   @default("")
+  facebookUrl        String   @default("")
+  instagramUrl       String   @default("")
+  hours              String   @default("")
+  membershipFee      String   @default("")
+  walkInFee          String   @default("")
+  studentDiscount    String   @default("")
+  ptRate             String   @default("")
+  parkingAvailable   String   @default("unspecified")
+  welcomeMessage     String   @default("")
+  faqs               Json     @default("[]")
+  description        String   @default("")
+  trainerAvailable   String   @default("unspecified")
+  freeTrialAvailable String   @default("unspecified")
+  updatedAt          DateTime @updatedAt
+
+  @@map("gym_settings")
+}
+
+// Business-type + globalization config — mirrors gym-config-service.js's
+// record shape exactly (businessTypeId/countryCode/currencyCode/
+// languageCode). Valid ID/code lists are enforced server-side in
+// services/gymPlatformConfig.js against the same catalog the frontend's
+// config-business-types.js / config-globalization.js ship.
+model GymPlatformConfig {
+  id             String   @id @default(cuid())
+  gym            Gym      @relation(fields: [gymId], references: [id])
+  gymId          String   @unique
+  businessTypeId String   @default("traditional_gym")
+  countryCode    String   @default("PH")
+  currencyCode   String   @default("PHP")
+  languageCode   String   @default("fil")
+  updatedAt      DateTime @updatedAt
+
+  @@map("gym_platform_configs")
+}
+
+// Generic key/value store for small platform-wide settings that don't
+// warrant their own table — currently just maintenance mode. value is
+// JSON so a future setting can hold a structured payload without a new
+// migration.
+model PlatformSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+
+  @@map("platform_settings")
 }
 
 // One customer conversation thread per gym. `leadId` is optional and
@@ -130,15 +221,16 @@ model Lead {
 // gateway here, no verified transaction, just a record of what the
 // owner claims and what the Developer decided.
 //
-// SCOPE NOTE: this model intentionally does NOT reference a Plan,
-// Subscription, Invoice, or Commission table — none of those exist
-// server-side yet (they're still frontend-only, in
-// subscription-service.js / invoice-service.js / commission-service.js).
-// amount/planId/planName/billingPeriod fields below are trusted as
-// submitted by the caller's own session (never another gym's), same
-// boundary every other route in this file draws — but there's no
-// server-side source of truth to validate the AMOUNT against yet.
-// Tighten this once Subscription/Invoice get their own real tables.
+// SCOPE NOTE: this model intentionally does NOT reference a separate
+// Plan, Invoice, or Commission table — those stay frontend-only
+// concepts (invoice-service.js / commission-service.js are not ported
+// server-side). It DOES sit next to a real Subscription table now:
+// amount/planId/planName/billingPeriod on a created row are always
+// computed server-side in routes/billing.js's POST /billing/gcash
+// handler from the gym's own stored Subscription (getAmountDue()/
+// getPlan()) — never accepted from the request body. These columns
+// exist to freeze a durable record of what was charged at submission
+// time, not to be client-writable.
 model GcashPayment {
   id                  String    @id @default(cuid())
   gym                 Gym       @relation(fields: [gymId], references: [id])

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { prisma } from "../db.js";
 import { requireAuth, requireRole } from "../middleware/requireAuth.js";
+import { gymGate } from "../middleware/gymGate.js";
 
 const router = Router();
 
@@ -9,7 +10,7 @@ const router = Router();
 // verified session), never from the URL or body. This is the same
 // boundary leads-service.js's docstring calls for on the frontend;
 // here it's enforced server-side, which the client can't bypass.
-router.use(requireAuth);
+router.use(requireAuth, gymGate());
 
 const LEAD_STATUSES = ["New", "Contacted", "Scheduled", "Trial Completed", "Converted", "Lost"];
 const NAME_MAX_LEN = 120;
