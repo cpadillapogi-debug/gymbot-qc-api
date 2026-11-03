@@ -130,6 +130,36 @@ router.get("/", async (req, res) => {
   res.json({ leads: leads.map(toApiLead) });
 });
 
+/* ---------- GET /leads/needs-attention ----------
+   Leads that are still "in play" (not yet Converted or Lost) but
+   haven't had any activity in a while — the ones at real risk of
+   going cold simply because no one followed up. Sorted oldest-
+   activity-first, so the lead that's been waiting longest shows up
+   at the top. Listed before GET /:id so Express doesn't mistake
+   "needs-attention" for a lead id.
+   ?hours=48 overrides the default 48-hour staleness threshold. */
+router.get("/needs-attention", async (req, res) => {
+  const gymId = requireGymId(req, res);
+  if (!gymId) return;
+
+  const hours = Math.max(1, parseInt(req.query.hours, 10) || 48);
+  const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000);
+
+  const leads = await prisma.lead.findMany({
+    where: {
+      gymId,
+      status: { notIn: ["Converted", "Lost"] },
+      OR: [
+        { lastActivityAt: { lt: cutoff } },
+        { lastActivityAt: null, createdAt: { lt: cutoff } },
+      ],
+    },
+    orderBy: { lastActivityAt: "asc" },
+  });
+
+  res.json({ hours, count: leads.length, leads: leads.map(toApiLead) });
+});
+
 /* ---------- GET /leads/stats ----------
    Summary numbers for a dashboard "at a glance" view — counts per
    status plus a few derived figures, computed in the database rather
